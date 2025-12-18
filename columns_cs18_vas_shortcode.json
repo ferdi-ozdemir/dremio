@@ -1,0 +1,27 @@
+{
+    "cs18_vas_shortcode": {
+    "columns": [
+      { "name": "date_dt", "display": true },
+      { "name": "dow", "display": true },
+      { "name": "month", "display": true },
+      { "name": "call_type", "display": true },
+      { "name": "product_type", "display": true },
+      { "name": "otherpartymsisdn", "display": true },
+      { "name": "serviceclassid", "display": true },
+      { "name": "shortcode", "display": true },
+      { "name": "vasshortcode_nm", "display": true },
+      { "name": "service_provider", "display": true },
+      { "name": "vas_category", "display": true },
+      { "name": "event_count", "display": true },
+      { "name": "event_amount", "display": true },
+      { "name": "long_short_code_amt", "display": true },
+      { "name": "normal_short_code_amt", "display": true },
+      { "name": "created_date", "display": true },
+      { "name": "msisdn_key", "display": true },
+      { "name": "tbl_dt", "display": true }
+    ],
+    "partition_by": [],
+    "local_sort":   [],
+    "distribute_by":[]
+  }
+}

@@ -1,0 +1,16 @@
+{
+    "dates": [
+        {
+            "20251113": {
+                "start_date": "2025-11-13",
+                "end_date": "",
+                "tables": [
+                    "cs6_sdp_cdr",
+                    "msc_cdrs",
+                    "dpi_cdr",
+                    "cs6_ccn_cdr"
+                ]
+            }
+        }
+    ]
+}

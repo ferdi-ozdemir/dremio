@@ -1,0 +1,27 @@
+{
+    "dpi_cdr": {
+    "columns": [
+    { "name": "apn", "display": true },
+    { "name": "data_type_enrich", "display": true },
+    { "name": "datavolumedownlink_5g", "display": true },
+    { "name": "datavolumeuplink_5g", "display": true },
+    { "name": "date_key", "display": true },
+    { "name": "duration", "display": true },
+    { "name": "hour", "display": true },
+    { "name": "hr", "display": true },
+    { "name": "msisdn_key", "display": true },
+    { "name": "network_type_enrich", "display": true },
+    { "name": "network_type_enrich_ggsn", "display": true },
+    { "name": "recordtype", "display": true },
+    { "name": "rg464downlink", "display": true },
+    { "name": "rg464uplink", "display": true },
+    { "name": "rg99downlink", "display": true },
+    { "name": "rg99uplink", "display": true },
+    { "name": "trafficdown", "display": true },
+    { "name": "trafficup", "display": true },
+    { "name": "tbl_dt", "display": true }
+    ],
+    "partition_by": [],
+    "local_sort":   []
+  }
+}
