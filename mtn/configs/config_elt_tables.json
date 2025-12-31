@@ -2,7 +2,10 @@
     "tables": [
         {
             "table_name": "cis_cdr",
-            "is_active": true,
+            "is_active": false,
+            "elt_type": "reflection",
+            "start_day_offset": "1",
+            "ref_period_type": "mothly",
             "hive_source": "mtn_hive",
             "hive_schema_name": "flare_8",
             "hive_table_name": "cis_cdr",
@@ -26,6 +29,7 @@
         {
             "table_name":"cs6_sdp_cdr",
             "is_active": false,
+            "start_day_offset": "1",
             "hive_source": "mtn_hive",
             "hive_schema_name": "flare_8",
             "hive_table_name": "cs6_sdp_cdr",
@@ -48,6 +52,7 @@
         },
         {
             "table_name":"msc_cdrs",
+            "start_day_offset": "1",
             "is_active": false,
             "hive_source": "mtn_hive",
             "hive_schema_name": "flare_8",
@@ -72,6 +77,7 @@
         },
         {
             "table_name":"dpi_cdr",
+            "start_day_offset": "1",
             "is_active": false,
             "hive_source": "mtn_hive",
             "hive_schema_name": "flare_8",
@@ -95,7 +101,8 @@
         },
         {
             "table_name":"cs6_ccn_cdr",
-            "is_active": false,
+            "start_day_offset": "1",
+            "is_active": true,
             "hive_source": "mtn_hive",
             "hive_schema_name": "flare_8",
             "hive_table_name": "cs6_ccn_cdr",

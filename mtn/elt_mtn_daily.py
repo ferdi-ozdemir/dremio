@@ -13,8 +13,8 @@ import requests
 # =========================
 # Constants / Defaults
 # =========================
-CONFIG_FILE = "config.ini"
-TABLES_CONFIG_FILE = "config_elt_tables.json"
+CONFIG_FILE = "configs/config.ini"
+TABLES_CONFIG_FILE = "configs/config_elt_tables.json"
 LOG_DIR = "logs"
 OUTPUT_DIR = "sql_scripts"
 # Resolve directory where this script lives
@@ -34,7 +34,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "sql_scripts")
 def setup_logger():
     os.makedirs(LOG_DIR, exist_ok=True)
     log_filename = os.path.join(
-        LOG_DIR, f"elt_orchestrator_{datetime.now():%Y%m%d_%H%M%S}.log"
+        LOG_DIR, f"elt_main_daily_{datetime.now():%Y%m%d_%H%M%S}.log"
     )
     logging.basicConfig(
         level=logging.INFO,
@@ -781,7 +781,6 @@ class ELTOrchestrator:
         for date_key in date_keys or []:
             start_date = normalize_date_input(date_key)
             for table_name in table_names or []:
-                #table_cfg = self.tables_cfg.get(table_name)
                 table_cfg=self._getTableConfigs(table_name)
                 ref_view_name = table_cfg["ref_view_name"]
                 s3_table = table_cfg["s3_table_name"]
@@ -801,12 +800,20 @@ class ELTOrchestrator:
                     full_s3 = f"\"{s3_space}\".\"{s3_schema}\".\"{s3_folder}\".\"{s3_table_name}\""
                 else:
                     full_s3 = f"\"{s3_space}\".\"{s3_schema}\".\"{s3_table_name}\""
+                
                 if self.table_exists(s3_space, s3_schema, s3_table_name, s3_folder):
                     if not force_rebuild:
                         log_step(f"[SKIP] S3 table [{full_s3}] already exists, don't perform elt process", "info")
                         continue              
                 
                 log_step(f"=== ELT PROCESS STARTED FOR [DATE-KEY] {date_key} | [TABLE-NAME] {table_name} |  ===","info",)
+                #Refresh metadata place
+                if table_name=="cs6_ccn_cdr":
+                    ...
+                    log_step(f"Metadata refresh started for {table_name} partitions","info",)
+                    self._refresh_metadata(table_name,date_key)
+                    log_step(f"Metadata refresh completed for {table_name} partitions","info",)
+                
                 self._execute_for_table(table_name, start_date)
                 log_step(f"=== ELT PROCESS ENDED FOR [DATE-END] {date_key} completed in {fmt_sec(start)} ===","success",)
                 log_step(f"=== CLEANUP PROCESS ENDED FOR [DATE-KEY] {date_key} | [TABLE-NAME] {table_name} |  ===","info",)
@@ -814,6 +821,16 @@ class ELTOrchestrator:
                 log_step(f"=== CLEANUP PROCESS STARTED FOR [DATE-KEY] {date_key} | [TABLE-NAME] {table_name} |  ===","info",)
                 self._create_update_sematic_views(table_name)
                 
+    def _refresh_metadata (self, table_name,date_key):
+        hive_table_name=""
+        if table_name=="cs6_ccn_cdr":
+            hive_table_name="mtn_hive.flare_8.cs6_ccn_cdr"
+            partitions=["VoLTE","VOICE","VAS","SMS","GPRS"]
+            for partition in partitions:
+                sql_refresh_meta=f"ALTER TABLE {hive_table_name} REFRESH METADATA FOR PARTITIONS (\"tbl_dt\"='{date_key}', \"servicetypeenrich\"='{partition}');"    
+                log_step(f"[SQL COMMAND]: {sql_refresh_meta}")
+                self.dremio.run_sql(sql_refresh_meta, f"Refresh metadata for {hive_table_name} (REFRESH METADATA)")
+        
     def _execute_for_table(self, table_name, start_date, end_date=None):
         start_table = time.time()
         
@@ -1370,20 +1387,40 @@ def define_elt_date(now: datetime | None = None) -> str:
     target_date = (now.date() - timedelta(days=offset_days))
     return target_date.strftime("%Y%m%d")
     
+
+def expand_dates(base_date_str: str, start_day_offset: int) -> list[str]:
+    """
+    Expands a base date backwards by start_day_offset days.
+    Example:
+      base_date_str = '20251201'
+      start_day_offset = 3
+      -> ['20251201', '20251130', '20251129']
+    """
+    base_date = datetime.strptime(base_date_str, "%Y%m%d").date()
+
+    dates = [
+        (base_date - timedelta(days=i)).strftime("%Y%m%d")
+        for i in range(start_day_offset)
+    ]
+
+    return dates 
     ...
 def main():
     setup_logger()
     args = parse_args()
     
     
+    #start_day_offset=args.start, "info") 
+    start_day_offset=3
     dates = None
+    date_keys = None
     if args.dates:
         dates=args.dates
+        date_keys = parse_date_list(dates)
     else:
-        dates=define_elt_date()
+        base_date=define_elt_date()
+        date_keys=expand_dates(base_date,start_day_offset)
         
-    date_keys = parse_date_list(dates)
-    
     table_names=None
     if not args.tables:
         log_step(f"Table names not defined, will process with default table_config {TABLES_CONFIG_FILE} , use --tables to define which tables will processed", "info")
@@ -1405,7 +1442,7 @@ def main():
     log_step(f"Date keys         : {date_keys}", "info")
     log_step(f"Tables to process : {len(table_names)} table(s)", "info")
     log_step(f"Table list        : {', '.join(table_names)}", "info")
-
+    #date_range
     try:
         orchestrator = ELTOrchestrator(
             mode=args.mode,
