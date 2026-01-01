@@ -2,10 +2,10 @@
     "tables": [
         {
             "table_name": "cis_cdr",
-            "is_active": false,
+            "is_active": true,
             "elt_type": "reflection",
             "start_day_offset": "1",
-            "ref_period_type": "mothly",
+            "ref_period_type": "monthly",
             "hive_source": "mtn_hive",
             "hive_schema_name": "flare_8",
             "hive_table_name": "cis_cdr",
@@ -24,7 +24,7 @@
             "columns_file": "columns_cis_cdr.json",
             "symantic_view_name": "mtn_ba_data.flare_8.cis_cdr",
             "ba_view_name": "dev.cis_cdr",
-            "limit": 1000
+            "limit": 0
         },
         {
             "table_name":"cs6_sdp_cdr",
@@ -102,7 +102,7 @@
         {
             "table_name":"cs6_ccn_cdr",
             "start_day_offset": "1",
-            "is_active": true,
+            "is_active": false,
             "hive_source": "mtn_hive",
             "hive_schema_name": "flare_8",
             "hive_table_name": "cs6_ccn_cdr",

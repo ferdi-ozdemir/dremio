@@ -13,8 +13,9 @@ import requests
 # =========================
 # Constants / Defaults
 # =========================
-CONFIG_FILE = "configs/config.ini"
-TABLES_CONFIG_FILE = "configs/config_elt_tables.json"
+CONFIG_DIR = "configs"
+CONFIG_FILE = f"{CONFIG_DIR}/config.ini"
+TABLES_CONFIG_FILE = f"{CONFIG_DIR}/config_elt_tables.json"
 LOG_DIR = "logs"
 OUTPUT_DIR = "sql_scripts"
 # Resolve directory where this script lives
@@ -223,7 +224,7 @@ class DremioClient:
 
     # --- public helpers with detailed logging/timing ---
 
-    def run_sql(self, sql, label=None):
+    def run_sql_old(self, sql, label=None):
         start = time.time()
         try:
             if label:
@@ -244,6 +245,46 @@ class DremioClient:
             )
             log_step(f"[SQL] {sql}", "error")
             raise
+    def run_sql(self, sql, label=None, raise_on_error: bool = True) -> bool:
+        """
+        Run a SQL statement.
+
+        :param sql: SQL string to execute
+        :param label: Optional label for logging
+        :param raise_on_error: 
+            - True  -> log as error and raise exception
+            - False -> log as warning and DO NOT raise
+        :return: True if success, False if failed
+        """
+        start = time.time()
+        try:
+            if label:
+                log_step(f"[SQL-START] {label}", "info")
+            log_step(f"[SQL] {sql}", "debug")
+
+            job_id = self._submit_sql(sql)
+            self._wait_job(job_id)
+
+            log_step(
+                f"[SQL-SUCCESS] {label or ''} (job={job_id}, elapsed={fmt_sec(start)})",
+                "success",
+            )
+            return True
+
+        except Exception as e:
+            level = "error" if raise_on_error else "warning"
+
+            log_step(
+                f"[SQL-FAILED] {label or ''} (elapsed={fmt_sec(start)}): {e}",
+                level,
+            )
+            log_step(f"[SQL] {sql}", level)
+
+            if raise_on_error:
+                raise
+
+            # swallow exception, just signal failure
+            return False
 
     def run_sql_has_rows(self, sql, label=None):
         start = time.time()
@@ -459,7 +500,7 @@ def build_filter_clause_int(start_date, end_date):
 
 def load_columns_from_file(columns_file, table_name):
     
-    columns_file=os.path.join(BASE_DIR, columns_file)
+    columns_file=os.path.join(BASE_DIR,CONFIG_DIR, columns_file)
     data = load_json(columns_file, f"Columns config ({columns_file})")
 
     if isinstance(data, dict) and table_name in data:
@@ -617,6 +658,8 @@ class ELTOrchestrator:
             ...
             #self._generate_plan_script(datekey, table_name)
         else:
+            date_key=define_elt_date()
+            self._execute_for_reflection("cis_cdr",date_key)
             self._execute_for_date(date_keys=date_keys,table_names=table_names)
 
         log_step(
@@ -782,6 +825,12 @@ class ELTOrchestrator:
             start_date = normalize_date_input(date_key)
             for table_name in table_names or []:
                 table_cfg=self._getTableConfigs(table_name)
+                elt_type=table_cfg.get("elt_type","elt")
+                
+                if elt_type=="reflection":
+                    continue
+                
+                
                 ref_view_name = table_cfg["ref_view_name"]
                 s3_table = table_cfg["s3_table_name"]
                 s3_space = table_cfg["s3_source"]
@@ -821,6 +870,96 @@ class ELTOrchestrator:
                 log_step(f"=== CLEANUP PROCESS STARTED FOR [DATE-KEY] {date_key} | [TABLE-NAME] {table_name} |  ===","info",)
                 self._create_update_sematic_views(table_name)
                 
+    def _execute_for_reflection(self,table_name="cis_cdr",date_key=None):
+        ...
+        log_step(f"Starting for reflection cis_cdr","info")
+        table_cfg=self._getTableConfigs(table_name)
+        print(table_cfg)
+        log_step(f"Line 877","info")
+        ref_period_type=table_cfg.get("ref_period_type","daily")
+        log_step(f"Ref period type is {ref_period_type}","info")
+        log_step(f"Line 879","info")
+        columns_file=table_cfg.get("columns_file")
+        log_step(f"Line 881","info")
+        ref_space_name=table_cfg.get("ref_space_name","mtn_ba_refs")
+        log_step(f"Line 883","info")
+        ref_schema_name=table_cfg.get("ref_schema_name","flare_8")
+        log_step(f"Line 885","info")
+        start_date = normalize_date_input(date_key)
+        log_step(f"Line 887","info")
+                           
+        if ref_period_type=="monthly":
+            log_step(f"Line 890: ref period is monthly","info")
+            log_step(f"Line 891","info")
+            date_month = date_key[0:6] #202512
+            ref_view_name="cis_cdr_202512"
+            ref_view_name=f"{table_name}_{date_month}"
+            refl_name=f"rfl_{table_name}_{date_key}" 
+            full_view=f"{ref_space_name}.{ref_schema_name}.{ref_view_name}"
+            log_step(f"Full view:{full_view}","info")
+            
+            ref_columns=None
+            col_list = load_columns_from_file(columns_file, table_name)
+            quoted_cols = [f'"{col}"' for col in col_list]
+            select_cols = ", ".join(quoted_cols)
+            ref_columns=select_cols
+            sql_refl = textwrap.dedent(
+                f"""
+                ALTER TABLE {full_view}
+                CREATE RAW REFLECTION "{refl_name}"
+                USING DISPLAY ({ref_columns})
+                """
+            ).strip()
+            log_step(f"{sql_refl}","info")
+            step_start = time.time()
+            self.dremio.run_sql(sql_refl, f"Create reflection {refl_name}")
+            try:
+                ...
+                self.dremio.wait_for_reflection_ready(refl_name)
+            except Exception as e:
+                log_step(
+                    f"Reflection '{refl_name}' not ready / failed: {e}. "
+                    f"Continuing may use source instead of reflection.",
+                    "warning",
+                )
+            log_step(
+                f"Completed for reflection {refl_name} in {fmt_sec(step_start)}",
+                "success",
+            )
+            #Cleanup Process  
+            log_step(f"Cleaup starts","info")
+            days_back_lookup=table_cfg["days_back_lookup"]
+            days_back_lookup=5
+            start_date = datetime.strptime(start_date, "%Y-%m-%d")
+            keep_ref=1
+            
+            for i in range(days_back_lookup):
+                drop_ref=True
+                loop_date = start_date - timedelta(days=i)
+                # Format outputs
+                dash_format = loop_date.strftime("%Y-%m-%d")  # 2025-10-29
+                compact_format = loop_date.strftime("%Y%m%d") # 20251029
+                # Your processing logic here
+                log_step(f"===Processing date {dash_format}!===")    
+                
+                # Skip most recent N days
+                if i < keep_ref:
+                    drop_ref=False
+
+                refl_name=f"rfl_{table_name}_{compact_format}" 
+                
+                if drop_ref:
+                    sql_drop_ref = textwrap.dedent(
+                            f"""
+                            alter view {full_view} drop reflection {refl_name}
+                            """
+                        ).strip()
+                    log_step(f"[Drop Reflection] Reflection {refl_name} drop operation will performed!")   
+                    log_step(f"{sql_drop_ref}","info")
+                    self.dremio.run_sql(sql_drop_ref, f"Drop reflection {full_view} --> {refl_name} (DROP)",False)
+        
+       
+            
     def _refresh_metadata (self, table_name,date_key):
         hive_table_name=""
         if table_name=="cs6_ccn_cdr":
