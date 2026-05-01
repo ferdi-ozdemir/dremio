@@ -1,0 +1,6 @@
+{
+  "dremio_url": "http://188.132.215.221:9047",
+  "username": "apiuser",
+  "password": "api12345",
+  "verify_ssl": false
+}
